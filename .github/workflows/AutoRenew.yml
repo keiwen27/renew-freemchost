@@ -2,7 +2,7 @@ name: Server Auto Renew
 
 on:
   schedule:
-    - cron: '37 6 * * *' # 每天北京时间 14:37 自动运行
+    - cron: '37 6 * * *' # 每天北京时间 14:37 前后启动（叠加随机延迟）
   workflow_dispatch: # 允许手动点击运行
 
 jobs:
@@ -10,6 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # 0. 随机延迟 0~40 分钟：避免每天固定同一时刻发起请求，降低被服务端识别为脚本的风险
+    - name: Random delay (anti-fingerprint)
+      run: |
+        D=$((RANDOM % 2400))
+        echo "⏳ 本次随机延迟 $((D / 60)) 分 $((D % 60)) 秒 后开始..."
+        sleep $D
+
     # 1. 下载仓库代码
     - name: Checkout repository code
       uses: actions/checkout@v4
@@ -26,7 +33,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    # 4. 运行续期脚本 (通过 tee 将干净的日志双向输出到屏幕和文件)
+    # 4. 运行续期脚本 (pipefail 保证脚本失败时本步骤真实失败, tee 不再吞掉退出码)
     - name: Run renew script
       env:
         MY_EMAIL: ${{ secrets.MY_EMAIL }}
@@ -37,38 +44,51 @@ jobs:
         set -o pipefail
         python renew.py | tee renew.log
 
-    # 5. 发送 TG 通知 (精准抓取 Python 提取到的到期时间)
+    # 5. 发送 TG 通知 (根据日志判定真实结果: 成功续期 / 有效期内跳过 / 失败)
     - name: Send Telegram Notification
       if: always()
       env:
-        TG_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-        TG_ID: ${{ secrets.TG_USER_ID }}
+        TG_TOKEN: ${{ secrets.TG_TOKEN }}
+        TG_ID: ${{ secrets.TG_ID }}
       run: |
-        # 1. 根据工作流结果设定大标题
-        if [ "${{ job.status }}" = "success" ]; then
+        # 1. 依据 renew.log 内容判定真实结果，设置对应标题
+        if grep -q "未到续期窗口" renew.log; then
+          TITLE="⏭️ Freemchost 服务器仍在有效期，本次跳过续期"
+        elif [ "${{ job.status }}" = "success" ]; then
           TITLE="✅ Freemchost 自动续期成功！"
         else
           TITLE="❌ Freemchost 自动续期失败！"
         fi
-        
-        # 2. 核心：从 renew.log 中过滤出包含“服务器名称”、“当前状态”、“到期时间”的行
-        # 使用 sed 去除可能引发 JSON 解析错误的双引号
+
+        # 2. 从 renew.log 中过滤出包含“服务器名称”、“当前状态”、“到期时间”的行
+        #    使用 sed 去除可能引发解析问题的双引号
         INFO_SUMMARY=$(grep -E "服务器名称|当前状态|到期时间" renew.log | sed 's/"//g')
-        
+
         # 3. 如果脚本彻底失败导致日志里没这几行，则抓取日志最后5行兜底
         if [ -z "$INFO_SUMMARY" ]; then
           INFO_SUMMARY=$(tail -n 5 renew.log | sed 's/"//g')
         fi
-        
+
         # 4. 组合最终发送的文本
         MSG_TEXT="${TITLE}
-        
+
         🔗 详情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        
+
         📊 服务器最新状态:
         ${INFO_SUMMARY}"
-        
-        # 5. 发送请求给 TG 机器人
-        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+
+        # 5. 校验 TG 配置，缺失时明确提示而不是静默失败
+        if [ -z "$TG_TOKEN" ] || [ -z "$TG_ID" ]; then
+          echo "⚠️ 未检测到 Secrets TG_TOKEN / TG_ID，跳过 TG 推送。"
+          exit 0
+        fi
+
+        # 6. 发送请求给 TG 机器人，并回显 API 响应便于排查
+        RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
           -d "chat_id=${TG_ID}" \
-          -d "text=${MSG_TEXT}"
+          -d "text=${MSG_TEXT}")
+        echo "Telegram API 响应: ${RESPONSE}"
+        case "$RESPONSE" in
+          *'"ok":true'*) echo "✅ TG 推送成功";;
+          *) echo "❌ TG 推送失败：请检查 Secrets TG_TOKEN / TG_ID 是否正确，以及是否已在 Telegram 中向该机器人发送过 /start";;
+        esac
