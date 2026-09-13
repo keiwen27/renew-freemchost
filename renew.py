@@ -26,8 +26,9 @@ RENEW_ACTION_URL = "https://freemchost.com/_serverFn/798181797bd95a02dee916a26c1
 # 【接口 B】获取最终完整状态的 Detail 路由（哈希未变）
 RENEW_DETAIL_URL = "https://freemchost.com/_serverFn/c3a45c08362f2f613bbb6d511a3733a9e85e561709d48bec9280e82a4aa4f47d"
 
-# 服务器 ID：优先读环境变量 SERVER_ID（浏览器地址栏 /app/servers/ 后面的 UUID），否则用抓包中的最新服务器
-SERVER_ID = os.getenv("SERVER_ID", "8e273bce-81da-45ae-8f33-2be0ce5d3ba5")
+# 服务器 ID：优先读环境变量 SERVER_ID（浏览器地址栏 /app/servers/ 后面的 UUID），
+# 注意用 or 兜底：Secret 未配置时传入空字符串也要回退到默认值
+SERVER_ID = os.getenv("SERVER_ID") or "8e273bce-81da-45ae-8f33-2be0ce5d3ba5"
 
 # 4. 人性化停留时间：网页端从弹窗打开到点击续期实测 dwell_ms=5063ms，
 #    服务端校验"挑战签发 -> 续期提交"之间的停留时长，太快会被判定为机器人。
