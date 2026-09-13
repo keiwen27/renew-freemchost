@@ -62,7 +62,7 @@ jobs:
 
         # 2. 从 renew.log 中过滤出包含“服务器名称”、“当前状态”、“到期时间”的行
         #    使用 sed 去除可能引发解析问题的双引号
-        INFO_SUMMARY=$(grep -E "服务器名称|当前状态|到期时间" renew.log | sed 's/"//g')
+        INFO_SUMMARY=$(grep -E "服务器名称:|当前状态  :|到期时间  :" renew.log | sed 's/"//g')
 
         # 3. 如果脚本彻底失败导致日志里没这几行，则抓取日志最后5行兜底
         if [ -z "$INFO_SUMMARY" ]; then
