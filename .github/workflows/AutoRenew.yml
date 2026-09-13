@@ -69,10 +69,8 @@ jobs:
           INFO_SUMMARY=$(tail -n 5 renew.log | sed 's/"//g')
         fi
 
-        # 4. 组合最终发送的文本
+        # 4. 组合最终发送的文本（不含仓库链接，避免暴露私有仓库信息）
         MSG_TEXT="${TITLE}
-
-        🔗 详情: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
         📊 服务器最新状态:
         ${INFO_SUMMARY}"
