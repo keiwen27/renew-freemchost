@@ -41,6 +41,8 @@
 * 最简单的方法：直接在**浏览器地址栏**的 URL 尾部（`/app/servers/` 后面那一串 36 位长、带连字符的 UUID）复制即可。
 * 可选：将 `SERVER_ID` 配置为 GitHub Secret（见下表）；不配置时使用脚本内的默认值。
 
+> 🚨 **2026-09-27 教训**：免费服务器到期 48 小时后会被平台**直接删除数据库记录**，此时挑战/详情接口会返回 PostgREST 错误 `Cannot coerce the result to a single JSON object`（PGRST116），脚本连续失败且毫无头绪。**重新开通服务器后，务必第一时间更新 GitHub Secret 里的 `SERVER_ID`**，否则自动化会一直空转失败。脚本已在失败时自动识别该错误并打印提示。
+
 ### 3. 抓取 `ANON_KEY` (Supabase 公钥)
 1. 退出当前的登录状态，回到 Freemchost 登录页面。打开 F12 开发者工具，切换到 **Network（网络）** 标签。
 2. 在过滤框中输入 `token?grant_type=password`。
@@ -61,9 +63,9 @@
 | `MY_EMAIL` | `your_email@gmail.com` | 你的 Freemchost 登录邮箱 (必填) |
 | `MY_PASSWORD` | `your_password` | 你的 Freemchost 登录密码 (必填) |
 | `ANON_KEY` | `eyJhbGciOiJIUzI1NiIs...` | 前端抓取到的 Supabase 专属公钥 (必填) |
-| `SERVER_ID` | `8e273bce-81da-45ae-...` | 你的服务器 UUID（可选，不填用脚本默认值） |
+| `SERVER_ID` | `c6484ab8-1345-4170-...` | 你的服务器 UUID（强烈建议配置；不填时用脚本内的默认值） |
 | `SCKEY` | `SCT123456T...` | （可选）Server酱微信推送公钥 |
-| `TG_BOT_TOKEN` / `TG_USER_ID` | `123456:AA...` / `654321` | （可选）Actions 工作流的 Telegram 推送 |
+| `TG_TOKEN` / `TG_ID` | `123456:AA...` / `654321` | （可选）Actions 工作流的 Telegram 推送（注意：Secret 名称必须与工作流中 `secrets.TG_TOKEN` / `secrets.TG_ID` 一致） |
 
 ### 2. 配置文件结构
 请确保你的 GitHub 仓库中包含以下核心文件且路径严格一致：
