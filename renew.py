@@ -127,6 +127,24 @@ def flatten_tss(res_json, depth=0):
                 flat.setdefault(fk, fv)
     return flat
 
+def parse_response_objects(res):
+    """把响应体解析为 JSON 对象列表：兼容旧版单帧 JSON 与新版 NDJSON 多行流式帧。
+    整体解析失败时按行切分逐行解析（TSS framed 响应为每行一个 JSON 帧）。"""
+    text = res.text or ""
+    try:
+        return [json.loads(text)]
+    except ValueError:
+        objs = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                objs.append(json.loads(line))
+            except ValueError:
+                pass
+        return objs
+
 TOKEN_RE = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\."   # user_id
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\."   # server_id
@@ -164,10 +182,13 @@ def extract_error_message(res_json, flat):
     """提取服务端错误信息。兼容两种形态（后者见 2026-09-12 真实日志）：
     1) TSS 帧内 error 键（值可能是字符串或 {'message': {'t':1,'s':..}} 嵌套结构）
     2) 顶层 $TSR/Error 错误节点 {"t":25,"s":{"message":..},"c":"$TSR/Error"}
+    res_json 支持传入单对象或 NDJSON 解析出的对象列表。
     """
     candidates = [flat.get("error")]
-    if isinstance(res_json, dict) and res_json.get("c") == "$TSR/Error":
-        candidates.append(res_json.get("s"))
+    nodes = res_json if isinstance(res_json, list) else [res_json]
+    for node in nodes:
+        if isinstance(node, dict) and node.get("c") == "$TSR/Error":
+            candidates.append(node.get("s"))
     for err in candidates:
         msg = _humanize_error(err)
         if msg:
@@ -219,13 +240,14 @@ def fetch_detail(base_headers):
             timeout=15
         )
         if detail_res.status_code == 200:
-            detail_flat = flatten_tss(detail_res.json())
+            detail_objects = parse_response_objects(detail_res)
+            detail_flat = flatten_tss(detail_objects or None)
             return (
                 detail_flat.get("name", "未知"),
                 detail_flat.get("status", "未知"),
                 detail_flat.get("expires_at"),
             )
-        log(f"⚠️ 详情刷新接口返回状态码 {detail_res.status_code}，将使用缺省值。")
+        log(f"⚠️ 详情刷新接口返回状态码 {detail_res.status_code}，将使用缺省值。响应: {detail_res.text[:200]!r}")
     except Exception as e:
         log(f"⚠️ 刷新最终详情时发生非致命异常: {e}")
     return "未知", "未知", None
@@ -248,13 +270,14 @@ def run_auto_renew():
         "origin": SITE_ORIGIN,
         "referer": f"{SITE_ORIGIN}/app/servers/{SERVER_ID}",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
-        "x-tsr-serverfn": "true"
+        "x-tsr-serverFn": "true"
     }
 
     # 2. 步骤 0/2：请求续期挑战，获取防机器人签名 token（站点新增的反自动化机制）
     log("🧩 步骤 0/2: 正在请求续期挑战令牌 (Challenge Token)...")
     challenge_started_at = time.monotonic()
     challenge_token = None
+    challenge_res = None
     try:
         challenge_res = requests.post(
             RENEW_CHALLENGE_URL,
@@ -263,15 +286,18 @@ def run_auto_renew():
             timeout=15
         )
         if challenge_res.status_code == 200:
-            challenge_token = extract_token(challenge_res.text, challenge_res.json())
+            res_objects = parse_response_objects(challenge_res)
+            challenge_token = extract_token(challenge_res.text, res_objects or None)
         else:
-            log(f"❌ 挑战令牌请求失败，状态码: {challenge_res.status_code} 响应: {challenge_res.text[:200]}")
-    except ValueError:
-        challenge_token = extract_token(challenge_res.text, None) if challenge_res is not None else None
+            log(f"❌ 挑战令牌请求失败，状态码: {challenge_res.status_code}")
     except Exception as e:
         log(f"💥 挑战令牌接口引发异常: {e}")
 
     if not challenge_token:
+        # 取证：打印原始响应辅助定位协议变化（仅失败时输出，成功时不刷屏）
+        if challenge_res is not None:
+            log(f"🔍 [调试] 挑战接口 HTTP {challenge_res.status_code} | Content-Type: {challenge_res.headers.get('content-type', '无')}")
+            log(f"🔍 [调试] 响应体前 800 字符: {challenge_res.text[:800]!r}")
         log("🛑 未能取得挑战令牌 (token)，续期无法继续。站点可能再次升级，请重新抓包。")
         notify("服务器自动续期失败", "未获取到续期挑战 token，请重新抓包检查挑战接口。")
         sys.exit(1)
@@ -299,7 +325,8 @@ def run_auto_renew():
             timeout=15
         )
         if action_res.status_code == 200:
-            action_json = action_res.json()
+            action_objects = parse_response_objects(action_res)
+            action_json = action_objects[0] if len(action_objects) == 1 else action_objects
             action_flat = flatten_tss(action_json)
             expires_at = action_flat.get("expires_at")
             err_msg = extract_error_message(action_json, action_flat)
