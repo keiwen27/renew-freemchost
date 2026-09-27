@@ -29,4 +29,4 @@ jobs:
         SERVER_ID: ${{ secrets.SERVER_ID }}
       run: |
         set -o pipefail
-        python renew.py | tee renew.log
+        python diag.py | tee diag.log
