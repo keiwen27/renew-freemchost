@@ -299,6 +299,10 @@ def run_auto_renew():
         if challenge_res is not None:
             log(f"🔍 [调试] 挑战接口 HTTP {challenge_res.status_code} | Content-Type: {challenge_res.headers.get('content-type', '无')}")
             log(f"🔍 [调试] 响应体前 800 字符: {challenge_res.text[:800]!r}")
+            if "Cannot coerce" in challenge_res.text:
+                log("💡 提示: 该错误为 PostgREST PGRST116 —— SERVER_ID 对应的服务器记录在数据库中不存在。")
+                log("   大概率是旧服务器到期后被平台回收。请到官网重新开通服务器，并把新 UUID 更新到")
+                log("   GitHub Secret SERVER_ID（浏览器地址栏 /app/servers/ 后面那一串）。")
         log("🛑 未能取得挑战令牌 (token)，续期无法继续。站点可能再次升级，请重新抓包。")
         notify("服务器自动续期失败", "未获取到续期挑战 token，请重新抓包检查挑战接口。")
         sys.exit(1)
