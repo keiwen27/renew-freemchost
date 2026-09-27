@@ -54,9 +54,23 @@ base = "application/x-tss-framed, application/x-ndjson, application/json"
 if tok:
     probe("DETAIL (f63, framed)", DE, payload({"id": SERVER_ID}), base)
     probe("CHALLENGE (f63, framed)", CH, payload({"id": SERVER_ID}), base)
-    probe("CHALLENGE (ndjson only)", CH, payload({"id": SERVER_ID}), "application/x-ndjson")
-    probe("CHALLENGE (json only)", CH, payload({"id": SERVER_ID}), "application/json")
-    probe("CHALLENGE (f=0)", CH, payload({"id": SERVER_ID}, f=0), base)
     probe("ACTION (f63, 假token)", AC, payload({"id": SERVER_ID, "token": "fake", "hp": "", "dwell_ms": 9000}), base)
+
+    # 直接查 Supabase 数据库：确认服务器记录是否还存在
+    rest = "https://laehfeigoiycigkfknfn.supabase.co/rest/v1"
+    rh = {"apikey": ANON, "authorization": f"Bearer {tok}", "accept-profile": "public"}
+    # 解析 user_id
+    import base64 as b64
+    pl = tok.split(".")[1]
+    pl += "=" * (-len(pl) % 4)
+    uid = json.loads(b64.urlsafe_b64decode(pl)).get("sub")
+    print("user_id:", uid)
+    for table in ["servers"]:
+        r = requests.get(f"{rest}/{table}?select=*", headers=rh, timeout=15)
+        print(f"--- {table} 全表(RLS 过滤后): HTTP {r.status_code} | CT: {r.headers.get('content-type','')}")
+        print("   ", r.text[:1500])
+    r = requests.get(f"{rest}/servers?id=eq.{SERVER_ID}&select=*", headers=rh, timeout=15)
+    print(f"--- servers?id=SERVER_ID: HTTP {r.status_code}")
+    print("   ", r.text[:800])
 else:
     print("登录失败:", r.text[:200])
