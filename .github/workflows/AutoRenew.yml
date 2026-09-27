@@ -60,9 +60,9 @@ jobs:
           TITLE="❌ Freemchost 自动续期失败！"
         fi
 
-        # 2. 从 renew.log 中过滤出包含“服务器名称”、“当前状态”、“到期时间”的行
-        #    使用 sed 去除可能引发解析问题的双引号
-        INFO_SUMMARY=$(grep -E "服务器名称:|当前状态  :|到期时间  :" renew.log | sed 's/"//g')
+        # 2. 从 renew.log 中提取 TG_SUMMARY 标记块作为状态摘要
+        #    （成功/跳过两个分支都会输出该块：服务器名称、状态、本次续期、Discord加成、到期时间）
+        INFO_SUMMARY=$(sed -n '/TG_SUMMARY_START/,/TG_SUMMARY_END/p' renew.log | grep -v "TG_SUMMARY" | sed -E 's/^\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}\] //; s/"//g')
 
         # 3. 如果脚本彻底失败导致日志里没这几行，则抓取日志最后5行兜底
         if [ -z "$INFO_SUMMARY" ]; then
