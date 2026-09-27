@@ -361,9 +361,11 @@ def run_auto_renew():
             server_name, server_status, detail_expires = fetch_detail(base_headers)
             log("⏭️ 未到续期窗口（到期前 46 小时才开放续期），本次自动跳过。")
             log("🎉【当前服务器状态】-----------------------")
-            log(f" 服务器名称: {server_name}")
-            log(f" 当前状态  : {server_status}")
-            log(f" 到期时间  : {detail_expires}")
+            log("TG_SUMMARY_START")
+            log(f"服务器名称: {server_name}")
+            log(f"服务器状态: {server_status}")
+            log(f"到期时间: {detail_expires}")
+            log("TG_SUMMARY_END")
             log("-------------------------------------------")
             notify("服务器暂无需续期", f"服务器 [{server_name}] 仍在有效期内，本次跳过续期。\n原因：{err_msg}\n当前到期时间：{detail_expires}")
             sys.exit(0)
@@ -385,10 +387,17 @@ def run_auto_renew():
         sys.exit(1)
 
     # 7. 打印最终完美闭环结果并推送
+    # （TG_SUMMARY 标记块由工作流提取后推送 Telegram，键名格式勿随意改动）
     log("🎉【全链路全自动续期成功】-----------------------")
-    log(f" 服务器名称: {server_name}")
-    log(f" 当前状态  : {server_status}")
-    log(f" 新到期时间: {expires_at}")
+    log("TG_SUMMARY_START")
+    log(f"服务器名称: {server_name}")
+    log(f"服务器状态: {server_status}")
+    if action_flat.get("hours"):
+        log(f"本次续期: +{action_flat['hours']} 小时")
+    if "boosted" in action_flat:
+        log(f"Discord加成: {action_flat['boosted']}")
+    log(f"到期时间: {expires_at}")
+    log("TG_SUMMARY_END")
     log("--------------------------------------------------")
 
     notify(
