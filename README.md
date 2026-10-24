@@ -8,6 +8,8 @@
 
 > ⚠️ **2026-09-13 重要更新**：站点域名从 `new.freemchost.com` 迁回 `freemchost.com`，并且续期接口新增了**防机器人挑战机制**（`token` / `hp` / `dwell_ms` 三参数），旧版单接口脚本会续期失败。本版已完整适配（依据真实抓包 + 前端 JS 逆向）。
 
+> 🚨 **2026-10-24 重要更新**：站点已整体迁移 Supabase 项目（`laehfeigoiycigkfknfn` → `xfibjcnylvmtgvjzywbj`）。**旧项目登录接口至今仍返回 200**（极具迷惑性），但站点后端只认新项目签发的 JWT，因此所有 serverFn 接口（挑战/续期/详情）都会报 `Unauthorized: Invalid token`。续期三接口的路由哈希与请求协议均未变化，只需更新登录地址与 `ANON_KEY` 公钥即可修复。新版已把新公钥内置为兜底默认值，即使忘记更新 GitHub Secret 也能照常运行。
+
 ---
 
 ## ✨ 核心特性
@@ -48,8 +50,8 @@
 2. 在过滤框中输入 `token?grant_type=password`。
 3. 输入邮箱和密码点击登录，点击下方的抓包请求。
 4. 在右侧 **Headers（标头）** -> **Request Headers（请求标头）** 区域中找到 `apikey` 或 `authorization` 字段。后面那串以 `eyJhbGci...` 开头的几百位超长字符串就是 `ANON_KEY`（复制 `authorization` 时注意去掉前面的 `Bearer ` 关键字）。
-5. 当前抓包确认的公钥（Supabase 项目 ref：`laehfeigoiycigkfknfn`，有效期至 2036 年，如 Secret 里已是此值则无需更换）：
-   `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhZWhmZWlnb2l5Y2lna2ZrbmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNzk1NTgsImV4cCI6MjA5NTg1NTU1OH0.r-CQTnTFWYj5Vawvn1Ky91QnPJMcp1feIRFWJrhq7T8`
+5. 当前抓包确认的公钥（Supabase 项目 ref：`xfibjcnylvmtgvjzywbj`，2026-10-24 从站点前端 bundle 提取，有效期至 2036 年，如 Secret 里已是此值则无需更换）：
+   `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaWJqY255bHZtdGd2anp5d2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MTAxMzQsImV4cCI6MjEwNzI4NjEzNH0.6bgvt8FGf_RhLl3QQrQZuXkWzeqhqPPOL3yJl1b_Y4s`
 
 ---
 

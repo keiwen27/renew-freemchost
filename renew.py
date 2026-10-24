@@ -8,13 +8,23 @@ import requests
 
 # ==================== 🔧 核心配置区 ====================
 # 1. 登录配置（完全从 GitHub Secrets 读取，不留任何默认值兜底）
-# Supabase 项目 ref 未变（laehfeigoiycigkfknfn），登录链路无需更换
-LOGIN_URL = "https://laehfeigoiycigkfknfn.supabase.co/auth/v1/token?grant_type=password"
+# ⚠️ 2026-10 发现站点已整体迁移 Supabase 项目：laehfeigoiycigkfknfn -> xfibjcnylvmtgvjzywbj
+# 旧项目登录虽然仍返回 200，但新后端只认新项目签发的 JWT，挑战接口会报 "Unauthorized: Invalid token"
+LOGIN_URL = "https://xfibjcnylvmtgvjzywbj.supabase.co/auth/v1/token?grant_type=password"
 EMAIL = os.getenv("MY_EMAIL")
 PASSWORD = os.getenv("MY_PASSWORD")
 
-# 2. 网页前端固定死公钥（完全从 GitHub Secrets 读取）
-SUPABASE_ANON_KEY = os.getenv("ANON_KEY")
+# 2. 网页前端固定死公钥（优先 GitHub Secrets，未配置/已过期时回退到最新公钥）
+#    ⚠️ 2026-10-24 站点迁移 Supabase 项目后，Secret 里可能还残留旧项目公钥。
+#    旧公钥会让新登录接口直接 401，因此这里显式登记旧值：一旦匹配到就强制替换为新值。
+#    该公钥本身是公开信息（与站点 index bundle 中一致，有效期至 2036 年），硬编码不构成泄密风险
+STALE_ANON_KEYS = {
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhZWhmZWlnb2l5Y2lna2ZrbmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNzk1NTgsImV4cCI6MjA5NTg1NTU1OH0.r-CQTnTFWYj5Vawvn1Ky91QnPJMcp1feIRFWJrhq7T8",
+}
+LATEST_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaWJqY255bHZtdGd2anp5d2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MTAxMzQsImV4cCI6MjEwNzI4NjEzNH0.6bgvt8FGf_RhLl3QQrQZuXkWzeqhqPPOL3yJl1b_Y4s"
+_env_anon_key = os.getenv("ANON_KEY")
+USING_FALLBACK_KEY = not _env_anon_key or _env_anon_key in STALE_ANON_KEYS
+SUPABASE_ANON_KEY = LATEST_ANON_KEY if USING_FALLBACK_KEY else _env_anon_key
 
 # 3. 路由配置 (2026-09-13 抓包逆向三步链路：挑战 -> 续期 -> 详情)
 # ⚠️ 站点域名已从 new.freemchost.com 迁回 freemchost.com，请求头 origin/referer 必须同步
@@ -31,9 +41,9 @@ RENEW_DETAIL_URL = "https://freemchost.com/_serverFn/c3a45c08362f2f613bbb6d511a3
 # ⚠️ 2026-09-27 更换：旧服务器 8e273bce-... 已到期被平台回收，新服务器 "kwn" 于 2026-09-27 创建
 SERVER_ID = os.getenv("SERVER_ID") or "c6484ab8-1345-4170-a684-2d67cd8acd41"
 
-# 4. 人性化停留时间：网页端从弹窗打开到点击续期实测 dwell_ms=5063ms，
-#    服务端校验"挑战签发 -> 续期提交"之间的停留时长，太快会被判定为机器人。
-#    这里取 6.5 秒留足余量（token 本身有效期远长于此，无需担心）。
+# 4. 人性化停留时间：服务端校验"挑战签发 -> 续期提交"之间的停留时长。
+#    2026-10 挑战接口响应中明示 min_dwell_ms=600（服务端硬门槛），
+#    这里仍取 6.5 秒留足余量，贴近真人操作节奏且远高于门槛。
 MIN_DWELL_MS = 6500
 
 # 5. 消息推送配置（可选，可从 GitHub Secrets 读取，不需要保持 None）
@@ -41,6 +51,8 @@ SCKEY = os.getenv("SCKEY")
 
 # 🚨 安全校验：如果必备的环境变量为空，直接中断运行并报错提示，使 GitHub Actions 显式失败
 def check_credentials():
+    if USING_FALLBACK_KEY:
+        log("ℹ️ ANON_KEY 未配置或仍为旧项目公钥，已自动使用内置最新公钥 (2026-10-24)。")
     if not all([EMAIL, PASSWORD, SUPABASE_ANON_KEY]):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{now}] 🛑 错误: 未能在环境中检测到必要的凭证 (MY_EMAIL, MY_PASSWORD 或 ANON_KEY)。")

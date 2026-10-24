@@ -2,12 +2,12 @@ import os
 import json
 import requests
 
-LOGIN_URL = "https://laehfeigoiycigkfknfn.supabase.co/auth/v1/token?grant_type=password"
+LOGIN_URL = "https://xfibjcnylvmtgvjzywbj.supabase.co/auth/v1/token?grant_type=password"
 SITE = "https://freemchost.com"
 EMAIL = os.getenv("MY_EMAIL")
 PASSWORD = os.getenv("MY_PASSWORD")
-ANON = os.getenv("ANON_KEY")
-SERVER_ID = os.getenv("SERVER_ID") or "8e273bce-81da-45ae-8f33-2be0ce5d3ba5"
+ANON = os.getenv("ANON_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmaWJqY255bHZtdGd2anp5d2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MTAxMzQsImV4cCI6MjEwNzI4NjEzNH0.6bgvt8FGf_RhLl3QQrQZuXkWzeqhqPPOL3yJl1b_Y4s"
+SERVER_ID = os.getenv("SERVER_ID") or "c6484ab8-1345-4170-a684-2d67cd8acd41"
 CH = "https://freemchost.com/_serverFn/8a85876cf1da47edc9a524dcba6145449f36592433445062fd5cb967b0bc9453"
 AC = "https://freemchost.com/_serverFn/798181797bd95a02dee916a26c18d3539a58152db8660e097ca48d7cdd8ee50c"
 DE = "https://freemchost.com/_serverFn/c3a45c08362f2f613bbb6d511a3733a9e85e561709d48bec9280e82a4aa4f47d"
@@ -57,7 +57,7 @@ if tok:
     probe("ACTION (f63, 假token)", AC, payload({"id": SERVER_ID, "token": "fake", "hp": "", "dwell_ms": 9000}), base)
 
     # 直接查 Supabase 数据库：确认服务器记录是否还存在
-    rest = "https://laehfeigoiycigkfknfn.supabase.co/rest/v1"
+    rest = "https://xfibjcnylvmtgvjzywbj.supabase.co/rest/v1"
     rh = {"apikey": ANON, "authorization": f"Bearer {tok}", "accept-profile": "public"}
     # 解析 user_id
     import base64 as b64
