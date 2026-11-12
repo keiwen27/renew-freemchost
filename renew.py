@@ -6,6 +6,29 @@ import time
 from datetime import datetime
 import requests
 
+# ==================== 🌐 网络层（代理隔离 + 自动重试） ====================
+# 使用独立 Session 并关闭环境/系统代理探测 (trust_env=False)：
+# - 本机手动运行时，不再被 Windows 残留的系统代理拦截（如 v2rayN 进程半死不活时，
+#   注册表代理仍指向 127.0.0.1:10808，导致 ProxyError: Unable to connect to proxy）；
+# - GitHub Actions 运行器本身没有代理配置，行为与原先完全一致。
+SESSION = requests.Session()
+SESSION.trust_env = False
+
+def http_post(url, headers=None, json_body=None, timeout=15, tries=3):
+    """POST 请求 + 网络层异常有限重试（3s/6s 退避）。
+    仅重试连接/超时类异常；HTTP 4xx/5xx 属业务响应，不在此重试。"""
+    last_exc = None
+    for attempt in range(1, tries + 1):
+        try:
+            return SESSION.post(url, headers=headers, json=json_body, timeout=timeout)
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            if attempt < tries:
+                wait = 3 * attempt
+                log(f"⚠️ 网络异常 ({e.__class__.__name__})，{wait} 秒后重试 (第 {attempt}/{tries - 1} 次)...")
+                time.sleep(wait)
+    raise last_exc
+
 # ==================== 🔧 核心配置区 ====================
 # 1. 登录配置（完全从 GitHub Secrets 读取，不留任何默认值兜底）
 # ⚠️ 2026-10 发现站点已整体迁移 Supabase 项目：laehfeigoiycigkfknfn -> xfibjcnylvmtgvjzywbj
@@ -68,7 +91,7 @@ def log(message):
 def notify(title, content):
     if SCKEY:
         try:
-            requests.post(f"https://sctapi.ftqq.com/{SCKEY}.send", data={"title": title, "desp": content}, timeout=5)
+            SESSION.post(f"https://sctapi.ftqq.com/{SCKEY}.send", data={"title": title, "desp": content}, timeout=5)
         except Exception as e:
             log(f"🔔 推送通知失败: {e}")
 
@@ -232,7 +255,7 @@ def get_new_token():
     }
 
     try:
-        response = requests.post(LOGIN_URL, headers=headers, json=payload, timeout=15)
+        response = http_post(LOGIN_URL, headers=headers, json_body=payload, timeout=15)
         if response.status_code == 200:
             token = response.json().get("access_token")
             if token:
@@ -246,10 +269,10 @@ def get_new_token():
 def fetch_detail(base_headers):
     """调用【接口 B】拉取服务器最新状态，返回 (name, status, expires_at)"""
     try:
-        detail_res = requests.post(
+        detail_res = http_post(
             RENEW_DETAIL_URL,
             headers=base_headers,
-            json=build_payload({"id": SERVER_ID}),
+            json_body=build_payload({"id": SERVER_ID}),
             timeout=15
         )
         if detail_res.status_code == 200:
@@ -292,10 +315,10 @@ def run_auto_renew():
     challenge_token = None
     challenge_res = None
     try:
-        challenge_res = requests.post(
+        challenge_res = http_post(
             RENEW_CHALLENGE_URL,
             headers=base_headers,
-            json=build_payload({"id": SERVER_ID}),
+            json_body=build_payload({"id": SERVER_ID}),
             timeout=15
         )
         if challenge_res.status_code == 200:
@@ -335,10 +358,10 @@ def run_auto_renew():
     err_msg = None
     action_flat = {}
     try:
-        action_res = requests.post(
+        action_res = http_post(
             RENEW_ACTION_URL,
             headers=base_headers,
-            json=build_payload({"id": SERVER_ID, "token": challenge_token, "hp": "", "dwell_ms": dwell_ms}),
+            json_body=build_payload({"id": SERVER_ID, "token": challenge_token, "hp": "", "dwell_ms": dwell_ms}),
             timeout=15
         )
         if action_res.status_code == 200:

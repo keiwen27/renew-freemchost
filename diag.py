@@ -2,6 +2,10 @@ import os
 import json
 import requests
 
+# 与 renew.py 一致：关闭环境/系统代理探测，避免本机残留代理导致诊断误报
+SESSION = requests.Session()
+SESSION.trust_env = False
+
 LOGIN_URL = "https://xfibjcnylvmtgvjzywbj.supabase.co/auth/v1/token?grant_type=password"
 SITE = "https://freemchost.com"
 EMAIL = os.getenv("MY_EMAIL")
@@ -37,13 +41,13 @@ def probe(name, url, body, accept):
         "user-agent": UA,
         "x-tsr-serverFn": "true",
     }
-    r = requests.post(url, headers=hh, json=body, timeout=15)
+    r = SESSION.post(url, headers=hh, json=body, timeout=15)
     print(f"--- {name}")
     print(f"    HTTP {r.status_code} | CT: {r.headers.get('content-type', '无')} | x-tss-serialized: {r.headers.get('x-tss-serialized')}")
     print(f"    body: {r.text[:400]!r}")
 
 
-r = requests.post(LOGIN_URL, headers={
+r = SESSION.post(LOGIN_URL, headers={
     "apikey": ANON, "authorization": f"Bearer {ANON}", "content-type": "application/json",
     "origin": SITE, "user-agent": UA,
 }, json={"email": EMAIL, "password": PASSWORD, "gotrue_meta_security": {}}, timeout=15)
@@ -66,10 +70,10 @@ if tok:
     uid = json.loads(b64.urlsafe_b64decode(pl)).get("sub")
     print("user_id:", uid)
     for table in ["servers"]:
-        r = requests.get(f"{rest}/{table}?select=*", headers=rh, timeout=15)
+        r = SESSION.get(f"{rest}/{table}?select=*", headers=rh, timeout=15)
         print(f"--- {table} 全表(RLS 过滤后): HTTP {r.status_code} | CT: {r.headers.get('content-type','')}")
         print("   ", r.text[:1500])
-    r = requests.get(f"{rest}/servers?id=eq.{SERVER_ID}&select=*", headers=rh, timeout=15)
+    r = SESSION.get(f"{rest}/servers?id=eq.{SERVER_ID}&select=*", headers=rh, timeout=15)
     print(f"--- servers?id=SERVER_ID: HTTP {r.status_code}")
     print("   ", r.text[:800])
 else:
