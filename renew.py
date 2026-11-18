@@ -262,6 +262,10 @@ def get_new_token():
                 log("✅ 成功模拟登录，已捕获最新专属 Token！")
                 return token
         log(f"❌ 登录失败，状态码: {response.status_code} 响应: {response.text[:200]}")
+        if response.status_code == 402 or "restricted" in response.text or "quota" in response.text:
+            log("💡 诊断: HTTP 402 = 站点方 Supabase 项目因流量超额 (exceed_cached_egress_quota) 被 Supabase 限制,")
+            log("   整站登录与数据库均已停止服务 —— 这是 freemchost 服务端的故障, 与你的账号/凭证/脚本无关。")
+            log("   只能等站点主人升级套餐或解除消费上限后自动恢复; 恢复后本任务会自动完成续期, 无需人工干预。")
     except Exception as e:
         log(f"💥 登录请求引发异常: {e}")
     return None
