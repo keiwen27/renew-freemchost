@@ -1,0 +1,46 @@
+name: TG Chat ID Discover
+
+on:
+  workflow_dispatch: # 用新 TG 号给机器人发条消息后, 手动触发本工作流, 在日志里读取该号的 chat_id
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Query recent bot chats (getUpdates)
+      env:
+        TG_TOKEN: ${{ secrets.TG_TOKEN }}
+      run: |
+        if [ -z "$TG_TOKEN" ]; then
+          echo "⚠️ 未检测到 Secret TG_TOKEN"
+          exit 1
+        fi
+        curl -s "https://api.telegram.org/bot${TG_TOKEN}/getUpdates" -o updates.json
+        python3 - <<'PY'
+        import json
+        try:
+            d = json.load(open('updates.json'))
+        except Exception as e:
+            print('⚠️ 响应解析失败:', e)
+            raise SystemExit(1)
+        if not d.get('ok'):
+            print('⚠️ Bot API 返回错误:', d.get('description'))
+            raise SystemExit(1)
+        ids = {}
+        for u in d.get('result', []):
+            msg = u.get('message') or u.get('channel_post') or {}
+            chat = msg.get('chat') or {}
+            cid = chat.get('id')
+            if cid is not None:
+                name = chat.get('username') or chat.get('first_name') or '?'
+                ids[str(cid)] = str(name)
+        if not ids:
+            print('⚠️ 未发现聊天记录: 请先用目标 TG 号给机器人发一条 /start 或任意消息, 再重新触发本工作流')
+        else:
+            print('✅ 最近活跃的会话 (chat_id  用户名):')
+            for cid, name in sorted(ids.items()):
+                print(f'   {cid}  {name}')
+            print()
+            print('提示: 把目标号码对应的数字 chat_id 发给助手, 或直接把 TG_ID Secret 更新为 "旧id,新id" (逗号分隔)')
+        PY
